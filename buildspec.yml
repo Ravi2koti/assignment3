@@ -3,20 +3,26 @@ version: 0.2
 phases:
   pre_build:
     commands:
-      - echo Logging in to Amazon ECR...
+      - echo "Logging in to Amazon ECR..."
       - aws --version
       - aws ecr get-login-password --region ca-central-1 | docker login --username AWS --password-stdin 387283381312.dkr.ecr.ca-central-1.amazonaws.com
-      - REPO="387283381312.dkr.ecr.ca-central-1.amazonaws.com/ravi-ecs-app"
-      - TAG="latest"
+      - REPOSITORY_URI=387283381312.dkr.ecr.ca-central-1.amazonaws.com/ravi-ecs-app
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
 
   build:
     commands:
-      - echo Build started on `date`
-      - echo Building Docker image...
-      - docker build -t $REPO:$TAG .
+      - echo "Building the Docker image..."
+      - docker build -t $REPOSITORY_URI:latest .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
 
   post_build:
     commands:
-      - echo Build completed on `date`
-      - echo Pushing Docker image to ECR...
-      - docker push $REPO:$TAG
+      - echo "Pushing Docker image to ECR..."
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo "Writing image definitions file for ECS deployment..."
+      - printf '[{"name":"ravi-task","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+
+artifacts:
+  files:
+    - imagedefinitions.json
